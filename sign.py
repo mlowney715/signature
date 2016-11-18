@@ -8,9 +8,9 @@
 import argparse
 import sys
 import random
-import hashlib
-from fractions import gcd
+from getH import getH
 from primitive_root import getPrimitiveRoot 
+from fractions import gcd
 
 # Input Parser
 parser = argparse.ArgumentParser(description = "Digital Signature")
@@ -33,20 +33,28 @@ def isPrime(n):
     return True
 
 global primes
-primes = [i for i in range(0,200) if isPrime(i)]
+primes = [i for i in range(0,100) if isPrime(i)]
 
 class key:
     def __init__(self):
-        # self.a = next(i for i in range (0,self.q-1) if gcd(i,self.q) == 1)
+        # Keep trying q values until there is a primitive root
         self.a = []
         while not self.a:
-            self.q = random.choice(primes)
-            self.a = getPrimitiveRoot(self.q)
+            try:
+                self.q = random.choice(primes)
+                self.a = getPrimitiveRoot(self.q)
+            except OverflowError:
+                # If there is an overflow error choose a different q
+                self.__init__()
         self.a = self.a[0]
+        # Private Key X is a random integer that is less than q
         self.X = random.randint(0,self.q-1)
+        # Public Key Y
         self.Y = (self.a**self.X)%self.q
 
     def show(self):
+        """Print Key Elements"""
+
         print("Public Elements: ")
         print("q = "+str(self.q))
         print("a = "+str(self.a))
@@ -55,22 +63,16 @@ class key:
         print("Public Key Y  = "+str(self.Y))
 
     def sign(self,M):
-        m = hashlib.sha1()
-        m.update(M)
-        h = int("0x"+m.hexdigest(), 0)
-        while gcd(h,self.q-1) != 1:
-            m.update(m.digest())
-            h = int("0x"+m.hexdigest(), 0)
-        if args.DEBUG:
-            print("X: "+str(self.X))
-            print("q-1: "+str(self.q-1))
-            print("h: "+str(h))
-        Z = float((self.X%(self.q-1))/h)
-        sig = self.a**Z
+        """Sign a message"""
+
+        # Get the hash value for the message
+        h = int("0x"+getH(M, self.q, 2),0)
+        Z = (self.X%(self.q-1))/float(h)
+        sig = (self.a**Z)**h
         if args.DEBUG:
             print("Z: "+str(Z))
             print("sig: "+str(sig))
-        return (sig, h)
+        return sig
             
 
 
@@ -81,12 +83,12 @@ def main():
         k.show()
     M = raw_input("What is your message: ")
     print("Attaching your signature...")
-    (sig, h) = k.sign(M)
+    sig = k.sign(M)
     print("Signed.")
     print
     print("Verifying...")
     print("Public Key Y = "+str(k.Y))
-    print("Signature**hash = "+str(sig**h))
+    print("Signature mod q = "+str(sig%k.q))
     print("Done.")
 
 if __name__ == "__main__":
